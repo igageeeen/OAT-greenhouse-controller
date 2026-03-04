@@ -40,7 +40,7 @@ Home Assistant を UI とし、 ローカル Python HTTP サーバ経由で
 -   network_mode: host
 -   systemd 管理サービス
 -   journald ログ最小化
--   将来的に ROM化前提
+-   ROM化済み（root ext4 を `ro` マウント、Docker・HA・cloudflared データは USB へ分離）
 
 ### GPIO / PWM 方式について
 

@@ -31,12 +31,13 @@
 
 -   Docker data-root
 -   Home Assistant config（DB含む）
+-   cloudflared 設定（`/etc/cloudflared/`）
 
 構成例：
 
-SD: / /boot
+SD: / /boot（ro）
 
-USB: /mnt/hausb/docker /mnt/hausb/ha_config
+USB: /mnt/hausb/docker /mnt/hausb/ha_config /mnt/hausb/cloudflared
 
 ------------------------------------------------------------------------
 
@@ -57,19 +58,23 @@ sudo blkid
 sudo mkdir -p /mnt/hausb
 ```
 
-`/etc/fstab` に USB の自動マウントを追記：
+`/etc/fstab` に以下をすべて反映する（root の ro 化・USB マウント）：
 
 ```bash
 sudo nano /etc/fstab
 ```
 
 ```
-# USB フラッシュメモリ（Docker・HA データ用）
+# SD カード root を読み取り専用（ROM化）
+# PARTUUID は "sudo blkid /dev/mmcblk0p2" で確認
+PARTUUID=xxxxxxxx-02  /  ext4  ro,noatime  0  1
+
+# USB フラッシュメモリ（Docker・HA・cloudflared データ用）
 UUID=xxxx-xxxx  /mnt/hausb  ext4  defaults,noatime,nofail  0  2
 ```
 
-> `nofail` を付けることで USB が接続されていなくても起動が止まらなくなります。
-> `noatime` で読み取り時の書き込みを抑制し SD カードへの負荷も下げます。
+> - root を `ro` にすると `/` への書き込みはすべてエラーになります。メンテナンス時は `sudo mount -o remount,rw /` で一時的に rw に戻してください。
+> - `nofail` を付けることで USB が接続されていなくても起動が止まらなくなります。
 
 マウントを確認：
 
@@ -132,6 +137,44 @@ docker run -d \
 
 ------------------------------------------------------------------------
 
+### 3.3 cloudflared の書き込み先を USB へ（systemd override）
+
+cloudflared は `$HOME/.cloudflared/` に認証情報やランタイムファイルを書き込む。
+root が ro のため、systemd override で `HOME` を USB に向けることで書き込み先を USB に移す。
+
+```bash
+# 1. override ディレクトリ作成
+sudo mkdir -p /etc/systemd/system/cloudflared.service.d
+
+# 2. override ファイル作成
+sudo nano /etc/systemd/system/cloudflared.service.d/override.conf
+```
+
+```ini
+[Service]
+Environment=HOME=/mnt/hausb/cloudflared
+WorkingDirectory=/mnt/hausb/cloudflared
+```
+
+```bash
+# 3. USB 側にディレクトリ作成
+sudo mkdir -p /mnt/hausb/cloudflared
+
+# 4. 既存の認証情報があれば移行
+#    （token ベースのインストールのみの場合は不要）
+# sudo cp -a ~/.cloudflared/. /mnt/hausb/cloudflared/.cloudflared/
+
+# 5. 設定を反映して再起動
+sudo systemctl daemon-reload
+sudo systemctl restart cloudflared
+sudo systemctl status cloudflared
+```
+
+> `/etc/systemd/system/cloudflared.service.d/override.conf` は root 上（ro）に置かれるが、
+> 内容は変わらないため問題なし。トークン更新時は `sudo mount -o remount,rw /` で一時的に rw に戻す。
+
+------------------------------------------------------------------------
+
 ## 4. 自動起動方式の整理
 
 USB 依存構成では **USB マウント後に Docker・HA が起動する**ことを保証する必要があります。
@@ -189,18 +232,31 @@ sudo systemctl restart systemd-journald
 
 ### /tmp を tmpfs に
 
-```bash
-sudo nano /etc/fstab
-```
+3.0 の fstab 編集時に以下もあわせて追記：
 
 ```
 tmpfs  /tmp  tmpfs  defaults,noatime,size=64m  0  0
 ```
 
+### root を読み取り専用（ro）にする
+
+3.0 の fstab で root に `ro` を設定済みであれば完了。
+変更後は一度再起動して ro で正常起動することを確認する：
+
+```bash
+sudo reboot
+# 再起動後
+mount | grep " / "
+# → "ro" が含まれていれば OK
+```
+
+> root が ro の状態で書き込みが必要な操作（パッケージ更新など）は
+> `sudo mount -o remount,rw /` で一時的に rw に戻してから実施し、
+> 完了後に `sudo mount -o remount,ro /` で ro に戻す。
+
 ### その他
 
 -   HA recorder 最小化（`HomeAssistantConfiguration.yaml` の `recorder` セクション参照）
--   `/etc/fstab` の SD マウントに `noatime` を追加
 
 これによりSD書き込みを最小化。
 
@@ -217,8 +273,7 @@ tmpfs  /tmp  tmpfs  defaults,noatime,size=64m  0  0
 
 ## 7. 今後の発展案
 
--   root read-only化
--   overlayfs導入
+-   overlayfs導入（ro root + 差分書き込み層による完全保護）
 -   定期バックアップ自動化
 -   SSD化による耐久性向上
 

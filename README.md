@@ -108,8 +108,9 @@ sudo systemctl start motor_server
 
 電源断を前提とした農業現場での運用のため、以下の対策を実施しています：
 
-- SD カードへの書き込みを最小化（`journald: volatile`、`noatime` マウント）
-- Docker データと Home Assistant DB を USB フラッシュメモリへ分離
+- root を `ro`（読み取り専用）でマウントし SD カードへの書き込みをゼロに
+- journald を volatile（メモリのみ）、`/tmp` を tmpfs に
+- Docker データ・Home Assistant DB・cloudflared データを USB フラッシュメモリへ分離
 - 詳細: [src/ROM_USB_MIGRATION_PLAN.md](src/ROM_USB_MIGRATION_PLAN.md)
 
 ---
