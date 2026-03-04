@@ -125,7 +125,7 @@ MIT License
 
 本プロジェクトのコード・ドキュメントは、**Claude（Anthropic 社製 AI アシスタント）の支援を受けて作成**しました。
 
-- コード生成・レビュー・ドキュメント整備に Claude Code（claude-sonnet-4-6）を使用
-- 設計方針・要件定義・最終確認は人間（OpenAgriTech）が行っています
+- コード生成・レビュー・ドキュメント整備に Claude Code（claude-sonnet-4-6）、chatGPT5.2を使用
+- 設計方針・要件定義・最終確認は人間（iga）が行っています
 
 > *AI を農業 × ものづくりにどう活かすか、という実験でもあります。*
