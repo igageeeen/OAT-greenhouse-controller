@@ -1,0 +1,182 @@
+
+# Loads default set of integrations. Do not remove.
+default_config:
+
+# Load frontend themes from the themes folder
+frontend:
+  themes: !include_dir_merge_named themes
+
+# --- HTTP / Cloudflare Tunnel 対応 ---
+http:
+  use_x_forwarded_for: true
+  trusted_proxies:
+    - 127.0.0.1
+    - ::1
+
+# --- 外部URL（推奨） ---
+homeassistant:
+  external_url: https://ha.yourdomain.party  # ← 自分のドメインに変更してください
+  customize:
+    sensor.scd41_temperature:
+      friendly_name: 室内温度（SCD41）
+    sensor.scd41_humidity:
+      friendly_name: 室内湿度（SCD41）
+    sensor.scd41_co2:
+      friendly_name: CO2（SCD41）
+    sensor.sen0501_temperature:
+      friendly_name: 箱内温度（SEN0501）
+    sensor.sen0501_humidity:
+      friendly_name: 箱内湿度（SEN0501）
+
+# --- ログ最小化（ROM化前提） ---
+logger:
+  default: warning
+
+# --- recorder（将来ROM化するなら最小） ---
+recorder:
+  purge_keep_days: 1
+  commit_interval: 30
+
+# --- REST: JSONを1回で取得 ---
+sensor:
+  - platform: rest
+    name: house_metrics
+    resource: http://127.0.0.1:8124/metrics
+    method: GET
+    scan_interval: 30
+    timeout: 5
+    value_template: "{{ value_json.timestamp | default(0) }}"
+    json_attributes:
+      - sen0501
+      - scd41
+
+# --- Template: 必要な値だけエンティティ化 ---
+template:
+  - sensor:
+      - name: "SCD41 Temperature"
+        unique_id: scd41_temperature
+        unit_of_measurement: "°C"
+        device_class: temperature
+        state: >
+          {{ state_attr('sensor.house_metrics','scd41')
+             .temperature_c | default(none) }}
+
+      - name: "SCD41 Humidity"
+        unique_id: scd41_humidity
+        unit_of_measurement: "%"
+        device_class: humidity
+        state: >
+          {{ state_attr('sensor.house_metrics','scd41')
+             .humidity_rh | default(none) }}
+
+      - name: "SEN0501 Temperature"
+        unique_id: sen0501_temperature
+        unit_of_measurement: "°C"
+        device_class: temperature
+        state: >
+          {{ state_attr('sensor.house_metrics','sen0501')
+             .temperature_c | default(none) }}
+
+      - name: "SEN0501 Humidity"
+        unique_id: sen0501_humidity
+        unit_of_measurement: "%"
+        device_class: humidity
+        state: >
+          {{ state_attr('sensor.house_metrics','sen0501')
+             .humidity_rh | default(none) }}
+
+      - name: "SCD41 CO2"
+        unique_id: scd41_co2
+        unit_of_measurement: "ppm"
+        device_class: carbon_dioxide
+        state: >
+          {{ state_attr('sensor.house_metrics','scd41')
+             .co2_ppm | default(none) }}
+
+  - button:
+      - name: 開く
+        unique_id: house_open_button
+        press:
+          - service: script.house_open
+
+      - name: 閉じる
+        unique_id: house_close_button
+        press:
+          - service: script.house_close
+
+      - name: 停止
+        unique_id: house_stop_button
+        press:
+          - service: script.house_stop
+
+# motor kadouyou
+rest_command:
+  house_motor_open:
+    url: "http://127.0.0.1:8125/run?dir=0&sec={{ sec }}&duty={{ duty }}"
+    method: GET
+
+  house_motor_close:
+    url: "http://127.0.0.1:8125/run?dir=1&sec={{ sec }}&duty={{ duty }}"
+    method: GET
+
+  house_motor_stop:
+    url: "http://127.0.0.1:8125/stop"
+    method: GET
+
+# UI setting for HA
+script:
+  house_open:
+    alias: House Open
+    mode: single
+    fields:
+      sec:
+        description: "Run seconds"
+        example: 400
+      duty:
+        description: "PWM duty 0-100"
+        example: 100
+    sequence:
+      - service: rest_command.house_motor_open
+        data:
+          sec: "{{ sec | default(states('input_number.house_motor_sec') | int(400)) }}"
+          duty: "{{ duty | default(states('input_number.house_motor_duty') | int(100)) }}"
+
+
+  house_close:
+    alias: House Close
+    mode: single
+    fields:
+      sec:
+        description: "Run seconds"
+        example: 400
+      duty:
+        description: "PWM duty 0-100"
+        example: 100
+    sequence:
+      - service: rest_command.house_motor_close
+        data:
+          sec: "{{ sec | default(states('input_number.house_motor_sec') | int(400)) }}"
+          duty: "{{ duty | default(states('input_number.house_motor_duty') | int(100)) }}"
+
+
+  house_stop:
+    alias: House Stop
+    mode: single
+    sequence:
+      - service: rest_command.house_motor_stop
+
+input_number:
+  house_motor_sec:
+    name: モータ動作秒数
+    min: 1
+    max: 900
+    step: 1
+    unit_of_measurement: s
+    mode: box
+  house_motor_duty:
+    name: モータ出力（Duty）
+    min: 0
+    max: 100
+    step: 1
+    unit_of_measurement: "%"
+    mode: slider
