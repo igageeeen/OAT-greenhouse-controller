@@ -347,8 +347,9 @@ sudo systemctl status cloudflared
 
 ## 7. USB 分離構成（root ro 化時は必須・推奨）
 
-SD カードの長寿命化のため、Docker・HA データを USB メモリへ移動する手順は
-[src/ROM_USB_MIGRATION_PLAN.md](../src/ROM_USB_MIGRATION_PLAN.md) を参照してください。
+root を ro 化している場合は Docker・HA・cloudflared データの USB 分離が必須です（ro のまま書き込めないため）。
+SD カードの長寿命化にも効果があります。
+手順は [src/ROM_USB_MIGRATION_PLAN.md](../src/ROM_USB_MIGRATION_PLAN.md) を参照してください。
 
 ---
 

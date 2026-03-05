@@ -31,7 +31,7 @@
 
 -   Docker data-root
 -   Home Assistant config（DB含む）
--   cloudflared 設定（`/etc/cloudflared/`）
+-   cloudflared 設定（`/mnt/hausb/cloudflared/`）
 
 構成例：
 
@@ -213,7 +213,7 @@ sudo systemctl start homeassistant
 
 ------------------------------------------------------------------------
 
-3〜4節の全作業完了後に再起動してください
+> **3〜4節の全作業（Docker・HA・cloudflared の USB 移設）完了後に再起動してください（セクション 5 参照）。**
 
 ## 5. ログおよび書き込み削減
 
