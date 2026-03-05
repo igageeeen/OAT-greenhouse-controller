@@ -83,7 +83,9 @@ ls /sys/class/pwm/pwmchip0
 > モータ制御のように精度が必要な PWM には、現時点では **sysfs ハードウェア PWM が最も安定**しています。
 >
 > **Pi5 利用者へ**: `RPi.GPIO` の代わりに `pip install rpi-lgpio` をインストールすると、コードを変更せずに GPIO 方向制御を Pi5 でも動作させられます。`pwmchip0` は Pi4・Pi5 とも `dtoverlay=pwm` で同様に使用できます。
-  ※現時点2026/03での情報です。詳しい背景情報は作者(iga)も正しく把握できていません。
+>
+> ※現時点 2026/03 での情報です。詳しい背景情報は作者(iga)も正しく把握できていません。
+
 ---
 
 ## 0-b. I2C の有効化（必須）
@@ -343,7 +345,7 @@ sudo systemctl status cloudflared
 
 ---
 
-## 7. USB 分離構成（任意・推奨）
+## 7. USB 分離構成（root ro 化時は必須・推奨）
 
 SD カードの長寿命化のため、Docker・HA データを USB メモリへ移動する手順は
 [src/ROM_USB_MIGRATION_PLAN.md](../src/ROM_USB_MIGRATION_PLAN.md) を参照してください。

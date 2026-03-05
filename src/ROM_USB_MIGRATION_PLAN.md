@@ -79,7 +79,7 @@ UUID=xxxx-xxxx  /mnt/hausb  ext4  defaults,noatime,nofail  0  2
 マウントを確認：
 
 ```bash
-sudo mount -a
+sudo mount /mnt/hausb
 df -h | grep hausb
 ```
 
@@ -140,7 +140,7 @@ docker run -d \
 ### 3.3 cloudflared の書き込み先を USB へ（systemd override）
 
 cloudflared は `$HOME/.cloudflared/` に認証情報やランタイムファイルを書き込む。
-root が ro のため、systemd override で `HOME` を USB に向けることで書き込み先を USB に移す。
+root の ro 化に備えて（再起動前に実施）、systemd override で `HOME` を USB に向けることで書き込み先を USB に移す。
 
 ```bash
 # 1. override ディレクトリ作成
@@ -212,6 +212,8 @@ sudo systemctl start homeassistant
 > `RequiresMountsFor=/mnt/hausb` により、USB がマウントされていない場合はサービスが起動しません。
 
 ------------------------------------------------------------------------
+
+3〜4節の全作業完了後に再起動してください
 
 ## 5. ログおよび書き込み削減
 

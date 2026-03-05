@@ -79,7 +79,8 @@ Home Assistant（Docker, host network）
 ### 依存ライブラリ（Python）
 
 ```bash
-pip install RPi.GPIO adafruit-circuitpython-scd4x dfrobot-environmental-sensor
+sudo pip install RPi.GPIO adafruit-circuitpython-scd4x dfrobot-environmental-sensor --break-system-packages
+
 ```
 
 ### サービス起動（systemd）
