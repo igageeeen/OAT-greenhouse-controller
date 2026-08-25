@@ -1,169 +1,225 @@
 /* ============================================================
-   Greenhouse demo stand - printable footing parts
+   Greenhouse demo stand - printable footing parts  (rev.2)
    Printer : Bambu Lab P1S      Material : PLA
-   Pipe    : greenhouse hoop pipe, OD 22.2mm (measured)
+   Pipe    : greenhouse hoop pipe, OD 22.2mm
 
-   Parts (render one at a time with -D part="..."):
-     "foot"        - goes on every leg's ground-contact end
-     "pole_clamp"  - clamps to the main upright pole, carries
-                     the pivot for an outrigger leg
-     "arm"         - socket for the outrigger pipe, bolts to
-                     pole_clamp with an adjustable-angle slot
-     "assembly"    - preview of pole_clamp + arm mated together
+   rev.2 changes
+     - pole_clamp is now a two-sided FORK: one clamp anywhere on
+       the pole carries BOTH the fore and aft outrigger arms.
+     - every part is shaped for its print orientation: flat base
+       on the plate, no support anywhere, all downward faces >=45
+       degrees, and the load pressed ACROSS layers (compression)
+       rather than pulling them apart.
+
+   Render one part at a time:  openscad -D part="foot" -o foot.stl
    ============================================================ */
 
-part = "assembly"; // overridden from the command line with -D part="..."
+part = "assembly";
 
-// ---------------- shared parameters ----------------
-pipe_od   = 22.2;   // measured pipe OD - change if your pipe differs
-clear     = 0.35;   // per-side clearance for a snug slip/press fit
-wall      = 3.2;    // socket wall thickness (~8 perimeters @0.4mm nozzle)
-
+// ---------------- pipe / fit ----------------
+pipe_od   = 22.2;
+clear     = 0.40;   // per side. vertical bores print slightly under
+wall      = 3.2;    // 8 perimeters @ 0.4mm nozzle
 socket_id = pipe_od + clear * 2;
 socket_od = socket_id + wall * 2;
+
+// ---------------- joint geometry ----------------
+paddle_t  = 8;                    // arm paddle thickness
+fork_gap  = paddle_t + 0.8;       // slip clearance inside the fork
+plate_t   = 6;                    // each fork plate
+plate_y   = fork_gap / 2;         // inner face of each plate
+
+pr        = 21;   // pivot head radius (both clamp plates and arm paddle)
+boss_x    = 40;   // pivot offset from the pole axis - keeps the swinging
+                  // arm's paddle (radius pr) clear of the collar
+boss_z    = 40;   // pivot height
+pivot_d   = 8.5;  // M8 clearance
+index_d   = 5.5;  // M5 clearance
+index_r   = 14;   // index radius (clamp hole / arm slot)
+index_a   = 40;   // clamp's fixed index hole direction, deg from +X
+sweep     = 40;   // total adjustable spread, deg
+
+// the collar must reach the full height of the plates, otherwise the top
+// few mm of plate would close over the bore and the pole could not pass
+collar_h  = boss_z + pr;
+pin_z     = 12;   // M6 through-pin height
+pin_d     = 6.5;
+
+skirt_z   = boss_z - pr;          // where the 45deg skirt meets the head
+skirt_w1  = 30;                   // skirt half width. Capped so the tube of
+                                  // an arm set to the narrowest spread still
+                                  // swings past it with ~5mm to spare.
+over45    = 0.45;                 // extra clearance factor, unused knob
 
 $fn = 72;
 
 // ============================================================
-// PART 1 : FOOT
-// Pipe passes fully through; the steel tip bears on the floor,
-// the printed disc only widens the footprint against tipping.
+// helpers
 // ============================================================
-module foot(base_d = 100, base_t = 8, socket_h = 45, gusset_h = 14, chamfer = 1.5) {
-    // stacked exactly (no epsilon gaps) so every segment's end matches the next one's start
-    wall_h = socket_h - gusset_h - chamfer;
+
+// bore that opens downward on the build plate: the first layers are
+// squashed outward (elephant's foot), so relieve the very bottom
+module relieved_bore(d, h, relief = 0.6, relief_h = 0.8) {
+    cylinder(d = d, h = h);
+    translate([0, 0, -0.01]) cylinder(d = d + relief * 2, h = relief_h);
+}
+
+// 45deg lead-in at the top of a bore so the pipe starts easily.
+// Widening upward at 45deg is self-supporting.
+module bore_leadin(d, z, c = 2) {
+    translate([0, 0, z - c]) cylinder(d1 = d, d2 = d + c * 2, h = c + 0.01);
+}
+
+// ============================================================
+// PART 1 : FOOT   (prints flange-down, no support)
+// The pipe passes right through and its steel end bears on the
+// floor - the printed disc only widens the footprint, so PLA
+// never carries the standing load.
+// ============================================================
+module foot(base_d = 100, base_t = 8, socket_h = 45, gusset_h = 16) {
     total_h = base_t + socket_h;
     difference() {
         union() {
+            // flat, unbroken bottom: best bed adhesion and least warp
             cylinder(d = base_d, h = base_t);
+            // cone narrowing upward - self-supporting, and it is the
+            // gusset that carries the tipping moment into the disc
             translate([0, 0, base_t])
-                cylinder(d1 = socket_od + 16, d2 = socket_od, h = gusset_h);
+                cylinder(d1 = socket_od + 18, d2 = socket_od, h = gusset_h);
             translate([0, 0, base_t + gusset_h])
-                cylinder(d = socket_od, h = wall_h);
-            translate([0, 0, base_t + gusset_h + wall_h])
-                cylinder(d1 = socket_od, d2 = socket_od + chamfer * 2, h = chamfer);
+                cylinder(d = socket_od, h = socket_h - gusset_h);
         }
-        translate([0, 0, -1])
-            cylinder(d = socket_id, h = total_h + 2);
-        // shallow recess on the underside for a self-adhesive rubber/felt pad
-        translate([0, 0, -0.01])
-            cylinder(d = base_d - 20, h = 1.6);
+        translate([0, 0, -1]) relieved_bore(socket_id, total_h + 2);
+        bore_leadin(socket_id, total_h);
+        // break the sharp top rim (chamfer pointing down-inward is fine,
+        // it is a tiny feature on a vertical wall)
+        translate([0, 0, total_h - 1])
+            difference() {
+                cylinder(d = socket_od + 4, h = 1.2);
+                cylinder(d1 = socket_od, d2 = socket_od - 2.4, h = 1.2);
+            }
     }
 }
 
 // ============================================================
-// PART 2 : POLE CLAMP
-// Slides over the main upright pole and is pinned through a
-// hole drilled in the pipe (M6 bolt) so it can't rotate or
-// slip under load. Carries the fixed pivot boss.
+// PART 2 : POLE CLAMP  (prints collar-up, no support)
+// Two parallel plates straddle the pole and reach out to BOTH
+// sides, so a single clamp carries a fore and an aft arm in
+// double shear. Slide it to any height on the pole, drill one
+// M6 hole through the pipe and pin it.
 // ============================================================
-boss_d      = 52;   // pivot boss disc diameter
-boss_t      = 8;    // pivot boss disc thickness
-pivot_d     = 8.5;  // M8 clearance
-index_d     = 5.5;  // M5 clearance (anti-rotation pin)
-index_r     = 18;   // radius of the anti-rotation pin from the pivot centre
-slot_angle  = 45;   // total adjustable sweep, degrees
-collar_h    = 45;   // pole_clamp collar height
-boss_z      = 33;   // boss centre height on the collar (kept clear of the pin hole below)
-pin_z       = 12;   // M6 anti-slip pin height on the collar
-boss_x      = socket_od / 2 + 4; // pivot boss offset from the pole axis
 
-module boss_blank(d, t) {
-    // a disc whose face-normal is horizontal and tangential to the pole,
-    // i.e. the disc itself lies in the vertical plane containing the pole
-    // axis and the radial (outward) direction - so spinning it about its
-    // own normal tilts the arm from "near the pole" to "spread wide".
-    rotate([90, 0, 0]) cylinder(d = d, h = t, center = true);
+// 2D outline of one fork plate, in the XZ plane
+module plate_profile() {
+    difference() {
+        union() {
+            // stadium joining the two pivot heads
+            hull() {
+                translate([ boss_x, boss_z]) circle(r = pr);
+                translate([-boss_x, boss_z]) circle(r = pr);
+            }
+            // skirt down to the build plate. Straight vertical walls, not
+            // a taper: zero overhang, and it more than doubles the bed
+            // contact compared with a 45deg skirt. Its width is capped by
+            // what the arm needs to swing past at the narrowest setting.
+            translate([-skirt_w1, 0]) square([skirt_w1 * 2, skirt_z]);
+        }
+        // trim the lower-outboard quarter of each head back to 45deg,
+        // otherwise the underside of the circle is an unprintable
+        // near-horizontal overhang. It also opens the space the arm
+        // swings through.
+        for (s = [1, -1]) scale([s, 1])
+            polygon([[boss_x, skirt_z], [boss_x + 60, skirt_z + 60],
+                     [boss_x + 60, -1], [boss_x, -1]]);
+    }
 }
 
-module pole_clamp(pin_d = 6.5) {
-    // boss centre is set so the disc overlaps deep past the collar's own
-    // axis - a plain union (no hull) then fuses everything solidly, since
-    // the two shapes genuinely intersect rather than merely touch.
+module pole_clamp() {
     difference() {
         union() {
             cylinder(d = socket_od, h = collar_h);
-            translate([boss_x, 0, boss_z])
-                boss_blank(boss_d, boss_t);
+            for (s = [1, -1])
+                translate([0, s * (plate_y + plate_t), 0])
+                    rotate([90, 0, 0])
+                        linear_extrude(plate_t) plate_profile();
         }
-        // through-bore for the pole
-        translate([0, 0, -1])
-            cylinder(d = socket_id, h = collar_h + 2);
-        // cross-bore for the M6 pin (also passes through the pipe wall) -
-        // kept well clear of the boss so it doesn't eat into that material
-        translate([0, 0, pin_z])
-            rotate([90, 0, 0])
-                cylinder(d = pin_d, h = socket_od + 4, center = true);
-        // single fixed anti-rotation pin hole, straight "up" (+Z) from the pivot centre
-        translate([boss_x, 0, boss_z + index_r])
-            rotate([90, 0, 0]) cylinder(d = index_d, h = boss_t + 2, center = true);
-        // pivot bolt clearance through the boss centre
-        translate([boss_x, 0, boss_z])
-            rotate([90, 0, 0]) cylinder(d = pivot_d, h = boss_t + 2, center = true);
-        // recessed hex pocket on the outer (+Y) face so the M8 bolt head doesn't spin;
-        // the arm mates against the -Y face
-        translate([boss_x, boss_t / 2, boss_z])
-            rotate([90, 0, 0])
-                cylinder(d = 15, h = 5, $fn = 6);
+        // pole bore
+        translate([0, 0, -1]) relieved_bore(socket_id, collar_h + 2);
+        bore_leadin(socket_id, collar_h);
+        // M6 anti-slip pin, drilled through the pipe too. Runs along X
+        // at y=0, i.e. through the open gap between the plates.
+        translate([0, 0, pin_z]) rotate([0, 90, 0])
+            cylinder(d = pin_d, h = 200, center = true);
+        // pivot and index holes, both sides
+        for (s = [1, -1]) scale([s, 1, 1]) {
+            translate([boss_x, 0, boss_z]) rotate([90, 0, 0])
+                cylinder(d = pivot_d, h = 200, center = true);
+            translate([boss_x + index_r * cos(index_a), 0,
+                       boss_z + index_r * sin(index_a)])
+                rotate([90, 0, 0])
+                    cylinder(d = index_d, h = 200, center = true);
+        }
     }
 }
 
 // ============================================================
-// PART 3 : OUTRIGGER ARM
-// Socket for the outrigger pipe; bolts to pole_clamp's boss.
-// An arc SLOT (not fixed holes) gives continuously adjustable
-// spread angle - loosen, swing to the width you want, retighten.
+// PART 3 : OUTRIGGER ARM  (prints socket-up, no support)
+// Local frame: pivot at the origin, pipe socket along +Z, so the
+// strut load runs straight down the build direction and presses
+// the layers together instead of peeling them.
 // ============================================================
+neck_r    = pr + 5;               // where the tube may start: clear of
+                                  // the clamp's pivot head
+neck_hw   = socket_od / 2;        // neck as wide as the tube: no ledge
+flat_z    = -pr * cos(45);        // flat base, all overhangs >=45deg
+
 module arc_slot(r, w, ang) {
-    // an arc-shaped slot of width w, sweeping +/-ang/2 around Z, at radius r
     rotate_extrude(angle = ang, $fn = 96)
-        translate([r - w / 2, 0])
-            square(w);
+        translate([r - w / 2, 0]) square(w);
 }
 
-module arm(socket_h = 45, chamfer = 1.5) {
-    // boss disc centred on the pivot (local origin); the outrigger socket tube
-    // starts deep inside the disc (strong overlap, plain union - no hull) and
-    // protrudes outward along local +X.
-    tube_x0 = 8;         // where the tube's outer shape starts, embedded in the boss
-    tube_len = tube_x0 + socket_h;
-    bore_depth = socket_h - 8; // stop short of the boss core - gives the pipe a positive
-                               // stop and keeps the pivot-bolt area solid
+module arm(socket_h = 45) {
+    tube_top = neck_r + socket_h;
+    bore_depth = socket_h - 6;    // blind: gives the pipe a positive stop
     difference() {
         union() {
-            boss_blank(boss_d, boss_t);
-            translate([tube_x0, 0, 0])
-                rotate([0, 90, 0]) {
-                    cylinder(d = socket_od, h = tube_len - tube_x0 - chamfer);
-                    translate([0, 0, tube_len - tube_x0 - chamfer])
-                        cylinder(d1 = socket_od, d2 = socket_od + chamfer * 2, h = chamfer);
+            // paddle + neck, both paddle_t thick so they live inside the fork
+            rotate([90, 0, 0]) linear_extrude(paddle_t, center = true)
+                difference() {
+                    union() {
+                        circle(r = pr);
+                        translate([-neck_hw, 0]) square([neck_hw * 2, neck_r]);
+                    }
+                    translate([-pr - 1, flat_z - pr]) square([pr * 2 + 2, pr]);
                 }
+            // the socket tube, starting outside the clamp's head
+            translate([0, 0, neck_r]) cylinder(d = socket_od, h = socket_h);
         }
-        // pivot bolt clearance through the boss centre
-        rotate([90, 0, 0]) cylinder(d = pivot_d, h = boss_t + 2, center = true);
-        // arc slot: same radius as pole_clamp's fixed index hole, swept over the
-        // adjustable range - loosen the M5 bolt, slide to the width you want, retighten
-        rotate([90, 0, -90 + slot_angle / 2])
-            arc_slot(index_r, index_d, slot_angle);
-        // blind bore for the outrigger pipe - opens at the outer tip, stops short
-        // of the boss core so the pipe has a positive stop (not a through hole)
-        translate([tube_len - bore_depth, 0, 0])
-            rotate([0, 90, 0])
-                cylinder(d = socket_id, h = bore_depth + 1);
+        // pivot
+        rotate([90, 0, 0]) cylinder(d = pivot_d, h = 200, center = true);
+        // adjustable index slot, centred on local 180deg. The spin about the
+        // slot's own axis must happen BEFORE laying it into the XZ plane -
+        // rotate([90,0,c]) would apply the c about world Z and tilt it out
+        // of plane.
+        rotate([90, 0, 0]) rotate([0, 0, 180 - sweep / 2])
+            arc_slot(index_r, index_d, sweep);
+        // pipe socket - a vertical bore prints round and needs no support
+        translate([0, 0, tube_top - bore_depth])
+            cylinder(d = socket_id, h = bore_depth + 1);
+        bore_leadin(socket_id, tube_top);
     }
 }
 
-// ============================================================
-// render selection
 // ============================================================
 if (part == "foot") foot();
 else if (part == "pole_clamp") pole_clamp();
 else if (part == "arm") arm();
 else if (part == "assembly") {
-    preview_angle = 30; // pick any angle inside the slot's sweep, just for the preview
+    theta = [25, 55];   // two arms, deliberately at different spreads
     pole_clamp();
-    color("orange")
-        translate([boss_x, -boss_t, boss_z])
-            rotate([0, preview_angle, 0])
-                arm();
+    for (i = [0, 1]) scale([i == 0 ? 1 : -1, 1, 1])
+        color("orange")
+            translate([boss_x, 0, boss_z]) rotate([0, 180 - theta[i], 0]) arm();
+    // the pole itself, for context
+    %translate([0, 0, -40]) cylinder(d = pipe_od, h = 160);
 }
